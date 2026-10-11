@@ -131,6 +131,9 @@ docker run --rm --platform linux/amd64 -p 11957:11957 nsdf-llc2160-dashboard \
 - **Running an old version:** `docker compose up` and `docker run` reuse the image
   already on your machine. Run `docker compose pull` (or `docker pull ...:latest`)
   first to get the newest build.
+- **`no matching manifest for linux/arm64/v8` (Apple Silicon Mac):** the image is
+  `linux/amd64` only, because OpenVisus publishes no Linux ARM wheels. Add
+  `--platform linux/amd64` to `docker pull`/`docker run` (Compose already sets it).
 - **Port already in use:** change `LLC2160_PORT` in `.env`. With `docker run`,
   change both sides of `-p` and `--port` together, e.g. `-p 8080:8080 ... --port 8080`.
 - **Blank page or WebSocket errors behind a proxy/hostname:** set
