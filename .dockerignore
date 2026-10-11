@@ -1,6 +1,5 @@
 # Build context allowlist: only what the Dockerfile copies.
 *
-!docker-entrypoint.sh
 !src
 !app
 !json
