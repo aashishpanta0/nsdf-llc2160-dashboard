@@ -1,157 +1,192 @@
 # NSDF LLC2160 Dashboard
 
-Docker packaging for the NASA LLC2160 oceanic dashboard, built on
-[OpenVisus](https://github.com/sci-visus/OpenVisus) and
-[openvisuspy](https://github.com/sci-visus/openvisuspy).
+Interactive dashboard for the NASA DYAMOND LLC2160 ocean simulation (salinity,
+temperature, and u/v/w velocity), streamed with
+[OpenVisus](https://github.com/sci-visus/OpenVisus).
 
-Image: `ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest` (public, no login needed).
+The dashboard ships as a ready-to-run Docker image. You do not need to clone
+this repository or install Python; everything below uses the published image.
 
-For local Python installation, notebooks, and other dashboards, see the original
-[openvisuspy repository](https://github.com/sci-visus/openvisuspy).
+| | |
+| --- | --- |
+| Image | `ghcr.io/aashishpanta0/nsdf-llc2160-dashboard` ([package page](https://github.com/aashishpanta0/nsdf-llc2160-dashboard/pkgs/container/nsdf-llc2160-dashboard)) |
+| Tags | `latest` (newest build of `main`) and `X.Y.Z` (releases) |
+| Platform | `linux/amd64` (runs under emulation on Apple Silicon and other ARM hosts) |
+| Container port | `8080` |
+| Dashboard URL | `http://<host>:<port>/` (redirects to `/llc2160`) |
 
-## Prerequisites
+## Quick start
 
-- [Docker Desktop](https://docs.docker.com/get-docker/) (macOS/Windows) or Docker
-  Engine with the Compose plugin (Linux).
-- Check it works:
+You need [Docker](https://docs.docker.com/get-docker/) (Docker Desktop or Docker Engine).
 
-  ```sh
-  docker --version
-  docker compose version
-  ```
-
-The image is `linux/amd64`. On Apple Silicon it runs under emulation, which is
-slower but works.
-
-## Option A: Docker Compose (recommended)
-
-**1. Get the code**
-
-```sh
-git clone https://github.com/aashishpanta0/nsdf-llc2160-dashboard.git
-cd nsdf-llc2160-dashboard
+```bash
+docker run -d --name nsdf-llc2160 -p 11957:8080 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
 ```
 
-**2. Create your config**
+Open <http://localhost:11957/>. The first load can take a minute while data is fetched.
 
-```sh
-cp .env.example .env
+When you are done, stop and remove it with `docker rm -f nsdf-llc2160`.
+
+## Deploy on a server
+
+Both options restart the dashboard automatically and keep downloaded data in a
+named volume.
+
+### Option A: `docker run`
+
+```bash
+docker run -d --name nsdf-llc2160 --restart unless-stopped \
+  -p 11957:8080 \
+  -v nsdf-llc2160-cache:/var/cache/visus \
+  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
 ```
 
-The defaults work as-is. Edit `.env` to change the port (`LLC2160_PORT`), the
-dataset (`LLC2160_DATASET`), or to expose the dashboard on all interfaces
-(`LLC2160_BIND_ADDRESS=0.0.0.0`).
+### Option B: Docker Compose
 
-**3. Pull the latest image**
+Save this as `docker-compose.yml` (the same file is in this repository), then run
+`docker compose up -d`:
 
-```sh
-docker compose pull
+```yaml
+# NSDF LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/
+# Every setting is optional; see "Configuration" in the README.
+services:
+  nsdf-llc2160:
+    image: ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "11957:8080"
+    environment:
+      BOKEH_ALLOW_WS_ORIGIN: "*"  # on a server, set to the public hostname
+      # DATASET: /data/my-dataset/visus.idx
+    volumes:
+      - cache:/var/cache/visus
+      # - ./data:/data:ro
+
+volumes:
+  cache:
 ```
 
-**4. Start the dashboard**
+Either way the dashboard is at `http://<server>:11957/`. To serve it under a
+hostname, see [Behind a reverse proxy](#behind-a-reverse-proxy).
 
-```sh
-docker compose up -d
+## Configuration
+
+The image has working defaults for everything. To change one, add
+`-e NAME=value` to `docker run`, or set it under `environment:` in Compose.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DATASET` | `/opt/dashboard/json/nasa.json`: the five LLC2160 fields | What the dashboard opens: an OpenVisus `.idx` URL or path, or a JSON scene list |
+| `BOKEH_ALLOW_WS_ORIGIN` | `*` (any) | Host name(s) browsers use to reach the dashboard, comma-separated, e.g. `dashboards.example.org`. Set this on public servers |
+| `PORT` | `8080` | Port the server listens on inside the container. Change it only with `--network host` |
+
+| Container path | Purpose |
+| --- | --- |
+| `/var/cache/visus` | Cache of downloaded data. Mount a named volume to keep it across restarts |
+| `/data` | Empty mount point for your own datasets |
+
+Arguments after the image name are passed to
+[`panel serve`](https://panel.holoviz.org/how_to/server/commandline.html), for
+example `--num-procs 4` or `--prefix /dashboards`.
+
+### Use your own dataset
+
+Mount the directory that holds it at `/data` and point `DATASET` at it:
+
+```bash
+docker run -d --name nsdf-llc2160 -p 11957:8080 \
+  -v /path/to/datasets:/data:ro \
+  -e DATASET=/data/my-dataset/visus.idx \
+  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
 ```
 
-**5. Open it**
+A remote dataset needs no mount: `-e DATASET='https://example.org/path/visus.idx'`.
 
-<http://localhost:11957/nasa-oceanic>
+### Behind a reverse proxy
 
-The first load can take a minute while data is fetched.
+The dashboard uses WebSockets, so the proxy must forward the upgrade headers.
+With nginx:
 
-**6. Check logs (optional)**
-
-```sh
-docker compose logs -f
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:11957;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 1h;
+}
 ```
 
-**7. Stop it**
+Publish the port on localhost only (`-p 127.0.0.1:11957:8080`) so the dashboard
+is reachable only through the proxy, and set
+`-e BOKEH_ALLOW_WS_ORIGIN=<your hostname>`.
 
-```sh
-docker compose down             # stop
-docker compose down --volumes   # stop and clear the data cache
+## Manage a running dashboard
+
+| Task | `docker run` | Docker Compose |
+| --- | --- | --- |
+| Follow logs | `docker logs -f nsdf-llc2160` | `docker compose logs -f` |
+| Status and health | `docker ps -f name=nsdf-llc2160` | `docker compose ps` |
+| Stop and remove | `docker rm -f nsdf-llc2160` | `docker compose down` |
+| Delete the data cache | `docker volume rm nsdf-llc2160-cache` | `docker compose down --volumes` |
+
+### Update to the newest image
+
+Docker keeps using the image already on your machine, so pull first:
+
+```bash
+docker pull ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
+docker rm -f nsdf-llc2160
 ```
 
-**Update to a newer version**
+Then start it again with the same `docker run` command. With Compose, run
+`docker compose pull && docker compose up -d`.
 
-```sh
-git pull
-docker compose pull
-docker compose up -d
-```
-
-## Option B: Docker only
-
-**1. Pull the latest image**
-
-```sh
-docker pull --platform linux/amd64 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
-```
-
-**2. Run it**
-
-```sh
-docker run --rm --name llc2160 --platform linux/amd64 -p 11957:11957 \
-    ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest \
-    --address 0.0.0.0 --port 11957 --args json/nasa.json
-```
-
-**3. Open it**
-
-<http://localhost:11957/nasa-oceanic>
-
-**4. Stop it**
-
-Press `Ctrl+C`, or from another terminal run `docker stop llc2160`.
-
-## Using a local dataset
-
-1. Put the dataset under `./data`, e.g. `./data/my-dataset/visus.idx`.
-2. In `.env`, set `LLC2160_DATASET=/data/my-dataset/visus.idx`
-   (`./data` is mounted read-only at `/data` inside the container).
-3. Restart: `docker compose up -d`.
-
-## Building from source
-
-```sh
-docker compose up --build -d
-```
-
-Or without Compose:
-
-```sh
-docker build --platform linux/amd64 -t nsdf-llc2160-dashboard .
-docker run --rm --platform linux/amd64 -p 11957:11957 nsdf-llc2160-dashboard \
-    --address 0.0.0.0 --port 11957 --args json/nasa.json
-```
+To stay on a fixed release instead of `latest`, use one of the version tags
+listed on the [package page](https://github.com/aashishpanta0/nsdf-llc2160-dashboard/pkgs/container/nsdf-llc2160-dashboard), e.g. `:1.0.0`.
 
 ## Troubleshooting
 
-- **Running an old version:** `docker compose up` and `docker run` reuse the image
-  already on your machine. Run `docker compose pull` (or `docker pull ...:latest`)
-  first to get the newest build.
-- **`no matching manifest for linux/arm64/v8` (Apple Silicon Mac):** the image is
-  `linux/amd64` only, because OpenVisus publishes no Linux ARM wheels. Add
-  `--platform linux/amd64` to `docker pull`/`docker run` (Compose already sets it).
-- **Port already in use:** change `LLC2160_PORT` in `.env`. With `docker run`,
-  change both sides of `-p` and `--port` together, e.g. `-p 8080:8080 ... --port 8080`.
-- **Blank page or WebSocket errors behind a proxy/hostname:** set
-  `LLC2160_ALLOW_WS_ORIGIN` in `.env` to the hostname you browse to.
+- **Warning: `requested image's platform (linux/amd64) does not match`**:
+  harmless on Apple Silicon and other ARM machines. OpenVisus has no Linux ARM
+  build, so the image runs under emulation, which is slower. Add
+  `--platform linux/amd64` to hide the warning. On ARM Linux without Docker
+  Desktop, enable emulation once with
+  `docker run --privileged --rm tonistiigi/binfmt --install amd64`.
+- **Port already in use**: change the left-hand number of `-p`, e.g.
+  `-p 9000:8080`, then open `http://localhost:9000/`.
+- **Page loads but stays blank**: the browser's WebSocket connection is being
+  refused. Behind a proxy, check the upgrade headers above and that
+  `BOKEH_ALLOW_WS_ORIGIN` matches the hostname in the address bar.
+- **Still running an old version**: `docker run` does not fetch a newer
+  `latest` by itself; follow [Update to the newest image](#update-to-the-newest-image).
 
-## Publishing (maintainers)
+## For maintainers
 
-`.github/workflows/docker.yml` builds and pushes the image to GHCR:
+[`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds the image,
+starts it, loads the dashboard page, and fails if the dashboard logs an error.
+Only then is the image published:
 
-| Trigger         | Tags published                             |
-|-----------------|--------------------------------------------|
-| Push to `main`  | `latest`                                   |
-| Push a `v*` tag | `<version>` (e.g. `1.0.0`)                 |
-| Pull request    | built only, not pushed                     |
+| Event | Published tags |
+| --- | --- |
+| Push to `main` | `latest` |
+| Push a `vX.Y.Z` tag | `X.Y.Z` |
+| Pull request | none (build and test only) |
 
-To cut a release:
-
-```sh
+```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+To build and run it locally:
+
+```bash
+docker build --platform linux/amd64 -t nsdf-llc2160-dashboard .
+docker run --rm -p 11957:8080 nsdf-llc2160-dashboard
+```
+
+The image runs this repository's own copy of openvisuspy (from [sci-visus/openvisuspy](https://github.com/sci-visus/openvisuspy/tree/test_region_extraction), branch `test_region_extraction`); the
+dashboard itself is in [`app/`](app). For notebooks, local Python installs, and
+other dashboards, see [openvisuspy](https://github.com/sci-visus/openvisuspy).
