@@ -18,3 +18,5 @@ deploy/inventory.ini
 
 
 
+.env
+/data/

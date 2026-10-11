@@ -1,0 +1,25 @@
+services:
+  llc2160:
+    platform: ${LLC2160_PLATFORM:-linux/amd64}
+    build: .
+    image: ${LLC2160_IMAGE:-ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest}
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${LLC2160_BIND_ADDRESS:-127.0.0.1}:${LLC2160_PORT:-11957}:${LLC2160_PORT:-11957}"
+    environment:
+      BOKEH_ALLOW_WS_ORIGIN: "${LLC2160_ALLOW_WS_ORIGIN:-*}"
+      VISUS_CACHE: /var/cache/visus
+    command:
+      - --address
+      - "${LLC2160_LISTEN_ADDRESS:-0.0.0.0}"
+      - --port
+      - "${LLC2160_PORT:-11957}"
+      - --args
+      - "${LLC2160_DATASET:-json/nasa.json}"
+    volumes:
+      - llc2160-cache:/var/cache/visus
+      - ./data:/data:ro
+
+volumes:
+  llc2160-cache:

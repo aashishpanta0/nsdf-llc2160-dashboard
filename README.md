@@ -1,3 +1,31 @@
+# NSDF LLC2160 Dashboard
+
+Self-contained dashboard: source code, `Dockerfile`, `docker-compose.yml`, and a
+GitHub Actions workflow (`.github/workflows/docker.yml`) that publishes
+`ghcr.io/aashishpanta0/nsdf-llc2160-dashboard` on pushes to `main` and on `v*` tags.
+
+## Run with Docker Compose
+
+```sh
+cp .env.example .env      # then edit .env
+docker compose up --build -d
+```
+
+Open <http://localhost:11957/nasa-oceanic>. Stop with `docker compose down`
+(add `--volumes` to drop the cache).
+
+Without `--build`, Compose pulls the published image when available.
+
+## Run with Docker only
+
+```sh
+docker build --platform linux/amd64 -t nsdf-llc2160-dashboard .
+docker run --rm -p 11957:5006 nsdf-llc2160-dashboard \
+    --address 0.0.0.0 --port 5006 --args <dataset>
+```
+
+---
+
 # Instructions
 
 

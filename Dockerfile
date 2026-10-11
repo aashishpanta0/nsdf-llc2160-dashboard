@@ -1,17 +1,38 @@
-FROM python:3.10
+FROM python:3.12-slim-bookworm AS builder
 
-RUN python3 -m pip install --upgrade pip
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/python -m pip install --no-cache-dir --only-binary=OpenVisus \
+        bokeh panel ipywidgets OpenVisus ipywidgets_bokeh ipykernel \
+        boto3 xmltodict aiohttp colorcet
 
-COPY requirements.txt ./
-RUN python3 -m pip install -r requirements.txt
+FROM python:3.12-slim-bookworm AS runtime
 
-RUN python3 -m pip install --upgrade OpenVisusNoGui
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/openvisuspy/src \
+    PATH=/opt/venv/bin:$PATH \
+    BOKEH_ALLOW_WS_ORIGIN=* \
+    VISUS_CACHE=/var/cache/visus
 
-ARG GIT_TAG
-RUN python3 -m pip install openvisuspy==$GIT_TAG
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libgl1 libglu1-mesa libglib2.0-0 libgomp1 libxrender1 libxext6 libsm6 \
+    && rm -rf /var/lib/apt/lists/*
 
-CMD ["jupyter", "lab", "--allow-root", "--notebook-dir='/usr/local/lib/python3.10/site-packages/openvisuspy/notebooks'", "--port 8888", "--NotebookApp.token=''", "--NotebookApp.allow_origin='*'", "--ip", "0.0.0.0""]
+COPY --from=builder /opt/venv /opt/venv
+COPY src /opt/openvisuspy/src
+COPY json /opt/openvisuspy/json
+COPY app /opt/openvisuspy/nasa-oceanic
 
+RUN python -c "import OpenVisus; import openvisuspy"
 
+RUN useradd --create-home --uid 10001 dashboard \
+    && mkdir -p /var/cache/visus /data \
+    && chown dashboard:dashboard /var/cache/visus /data
 
+WORKDIR /opt/openvisuspy
+USER dashboard
 
+ENTRYPOINT ["python", "-m", "panel", "serve", "nasa-oceanic"]
+CMD ["--args", "json/nasa.json"]
