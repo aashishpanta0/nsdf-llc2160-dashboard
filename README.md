@@ -4,24 +4,72 @@ Self-contained dashboard: source code, `Dockerfile`, `docker-compose.yml`, and a
 GitHub Actions workflow (`.github/workflows/docker.yml`) that publishes
 `ghcr.io/aashishpanta0/nsdf-llc2160-dashboard` on pushes to `main` and on `v*` tags.
 
+## Run the published image
+
+The image is public; no login is needed.
+
+```sh
+docker pull ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
+docker run --rm -p 11957:11957 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest \
+    --address 0.0.0.0 --port 11957 --args json/nasa.json
+```
+
+Open <http://localhost:11957/nasa-oceanic>.
+
 ## Run with Docker Compose
 
 ```sh
 cp .env.example .env      # then edit .env
-docker compose up --build -d
+docker compose up -d      # pulls the published image
+docker compose up --build -d   # or build from local source
 ```
 
 Open <http://localhost:11957/nasa-oceanic>. Stop with `docker compose down`
 (add `--volumes` to drop the cache).
 
-Without `--build`, Compose pulls the published image when available.
+To use a local dataset, place it under `./data` (mounted at `/data`) and set
+`LLC2160_DATASET=/data/my-dataset/visus.idx` in `.env`.
 
 ## Run with Docker only
 
 ```sh
 docker build --platform linux/amd64 -t nsdf-llc2160-dashboard .
-docker run --rm -p 11957:5006 nsdf-llc2160-dashboard \
-    --address 0.0.0.0 --port 5006 --args <dataset>
+docker run --rm -p 11957:11957 nsdf-llc2160-dashboard \
+    --address 0.0.0.0 --port 11957 --args <dataset>
+```
+
+## Publishing to GHCR
+
+`.github/workflows/docker.yml` builds the image and pushes it to
+`ghcr.io/aashishpanta0/nsdf-llc2160-dashboard`:
+
+| Trigger                  | Tags published               |
+|--------------------------|------------------------------|
+| Push to `main`           | `latest`, `sha-<commit>`     |
+| Push a `v*` tag          | `<version>` (e.g. `1.0.0`), `sha-<commit>` |
+| Pull request             | built only, not pushed       |
+| Manual (`workflow_dispatch`) | same as the branch it runs on |
+
+Cut a release:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Trigger a rebuild manually:
+
+```sh
+gh workflow run docker -R aashishpanta0/nsdf-llc2160-dashboard
+```
+
+Push from a local machine (requires a token with `write:packages`):
+
+```sh
+gh auth refresh -s write:packages
+gh auth token | docker login ghcr.io -u aashishpanta0 --password-stdin
+docker buildx build --platform linux/amd64 \
+    -t ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest --push .
 ```
 
 ---
