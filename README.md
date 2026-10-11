@@ -1,4 +1,4 @@
-# NSDF LLC2160 Dashboard
+# NSDF NASA LLC2160 Dashboard
 
 Interactive dashboard for the NASA DYAMOND LLC2160 ocean simulation (salinity,
 temperature, and u/v/w velocity), streamed with
@@ -12,36 +12,50 @@ you do not need to clone this repository or install Python.
 | Image | `ghcr.io/aashishpanta0/nsdf-llc2160-dashboard` ([package page](https://github.com/aashishpanta0/nsdf-llc2160-dashboard/pkgs/container/nsdf-llc2160-dashboard)) |
 | Tags | `latest` (newest build of `main`) and `X.Y.Z` (releases) |
 | Platform | `linux/amd64` (runs under emulation on Apple Silicon and other ARM hosts) |
-| Port | `11957`, passed at run time |
-| Dashboard URL | `http://<host>:11957/nasa-oceanic` |
+| Port | `11957` |
+| Dashboard URL | `http://<host>:11957/nasa-llc2160` |
 
 ## Run with Docker
 
 You need [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
-docker run -d --name nsdf-llc2160 -p 11957:11957 \
-  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest \
-  --address 0.0.0.0 --port 11957 --args json/nasa.json
+docker run -d --name nasa-llc2160 -p 11957:11957 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
 ```
 
-Open <http://localhost:11957/nasa-oceanic>. The first load can take a minute while
-data is fetched. Stop and remove it with `docker rm -f nsdf-llc2160`.
+Open <http://localhost:11957/nasa-llc2160>. The first load can take a minute while
+data is fetched. Stop and remove it with `docker rm -f nasa-llc2160`.
 
-### How the container starts
+## Defaults and how to change them
 
-The image runs `python -m panel serve nasa-oceanic`, and everything after the image
-name is appended to that command. The image does not fix an address or port, so
-pass them every time:
+The image saves a default for everything, so it runs with no arguments. Pass
+only what you want to change; everything else keeps its default.
 
-| Argument | Meaning |
-| --- | --- |
-| `--address 0.0.0.0` | Listen on all interfaces, so traffic from outside the container reaches the server |
-| `--port 11957` | Port to listen on; publish the same one with `-p 11957:11957`. Without it, Panel uses `5006` |
-| `--args <dataset>` | Dataset to open; must come last. With no arguments at all, the image opens `json/nasa.json`, the five LLC2160 fields |
+| Setting | Default | Change it with |
+| --- | --- | --- |
+| Address | `0.0.0.0` | `--address <ip>`, or `-e ADDRESS=<ip>` |
+| Port | `11957` | `--port <port>`, or `-e PORT=<port>` |
+| Dataset | `/opt/openvisuspy/json/nasa.json` (the five LLC2160 fields) | `--args <dataset>`, the dataset as the first argument, or `-e DATASET=<dataset>` |
 
-Other [`panel serve` options](https://panel.holoviz.org/how_to/server/commandline.html)
-go before `--args`, for example `--num-procs 4` or `--prefix /llc2160`.
+Arguments go after the image name. For example, to serve on port 9000 (publish
+the same port with `-p`):
+
+```bash
+docker run -d --name nasa-llc2160 -p 9000:9000 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest --port 9000
+```
+
+A dataset can be an OpenVisus `.idx` URL or path, or a JSON scene list. For local
+files, mount their directory at `/data`:
+
+```bash
+docker run -d --name nasa-llc2160 -p 11957:11957 \
+  -v /path/to/datasets:/data:ro \
+  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest \
+  --args /data/my-dataset/visus.idx
+```
+
+Any other [`panel serve` option](https://panel.holoviz.org/how_to/server/commandline.html)
+is passed through, e.g. `--num-procs 4` or `--prefix /nasa-llc2160`.
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
@@ -54,21 +68,16 @@ Save this as `docker-compose.yml` (the same file is in this repository), then ru
 `docker compose up -d`:
 
 ```yaml
-# NSDF LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/nasa-oceanic
+# NSDF NASA LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/nasa-llc2160
 services:
-  llc2160:
+  nasa-llc2160:
     image: ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
     platform: linux/amd64
     restart: unless-stopped
     ports:
       - "11957:11957"
-    command:
-      - --address
-      - "0.0.0.0"
-      - --port
-      - "11957"
-      - --args
-      - "json/nasa.json"
+    # Defaults are saved in the image. To override one, e.g. the dataset:
+    # command: ["--args", "/data/my-dataset/visus.idx"]
     volumes:
       - cache:/var/cache/visus
 
@@ -82,43 +91,38 @@ volumes:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nasa-oceanic
+  name: nasa-llc2160
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nasa-oceanic
+      app: nasa-llc2160
   template:
     metadata:
       labels:
-        app: nasa-oceanic
+        app: nasa-llc2160
     spec:
       containers:
-        - name: nasa-oceanic
+        - name: nasa-llc2160
           image: ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
-          args:
-            - --address
-            - "0.0.0.0"
-            - --port
-            - "11957"
-            - --args
-            - "json/nasa.json"
+          # Defaults are saved in the image; override any of them with args, e.g.
+          # args: ["--port", "11957", "--args", "/data/my-dataset/visus.idx"]
           ports:
             - containerPort: 11957
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nasa-oceanic
+  name: nasa-llc2160
 spec:
   selector:
-    app: nasa-oceanic
+    app: nasa-llc2160
   ports:
     - port: 11957
       targetPort: 11957
 ```
 
-- Route your Ingress path `/nasa-oceanic` to the Service. The page also loads its
+- Route your Ingress path `/nasa-llc2160` to the Service. The page also loads its
   JavaScript from `/static/`, so route that too, or start the dashboard with
   `--prefix /<path>` and route only that prefix. The ingress controller must
   allow WebSocket upgrades.
@@ -126,26 +130,13 @@ spec:
   one pod.
 - Add probes as you need, e.g. a `tcpSocket` probe on port `11957`.
 
-## Use your own dataset
-
-Pass it after `--args`. For local files, mount their directory at `/data`:
-
-```bash
-docker run -d --name nsdf-llc2160 -p 11957:11957 \
-  -v /path/to/datasets:/data:ro \
-  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest \
-  --address 0.0.0.0 --port 11957 --args /data/my-dataset/visus.idx
-```
-
-`--args` accepts an OpenVisus `.idx` URL or path, or a JSON scene list.
-
 ## Update to the newest image
 
 Docker keeps using the image already on your machine, so pull first:
 
 ```bash
 docker pull ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
-docker rm -f nsdf-llc2160
+docker rm -f nasa-llc2160
 ```
 
 Then run the same `docker run` command again. With Compose, run
@@ -154,9 +145,10 @@ of `latest`, use one of the version tags on the [package page](https://github.co
 
 ## Troubleshooting
 
-- **Nothing answers on port 11957**: pass `--address 0.0.0.0 --port 11957`
-  and publish the same port with `-p`. `docker logs nsdf-llc2160` should show
-  `Bokeh app running at: http://0.0.0.0:11957/nasa-oceanic`.
+- **Nothing answers on the port**: the port in `-p` must match the port the
+  dashboard listens on (`11957` unless you passed `--port`).
+  `docker logs nasa-llc2160` shows it, e.g.
+  `Bokeh app running at: http://0.0.0.0:11957/nasa-llc2160`.
 - **Warning: `requested image's platform (linux/amd64) does not match`**:
   harmless on Apple Silicon and other ARM machines. OpenVisus has no Linux ARM
   build, so the image runs under emulation, which is slower. Add
@@ -170,9 +162,9 @@ of `latest`, use one of the version tags on the [package page](https://github.co
 ## For maintainers
 
 [`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds the image,
-starts it with `--address 0.0.0.0 --port 5006` and the default dataset, loads
-the dashboard page, and fails if the dashboard logs an error. Only then is the
-image published:
+starts it twice (with no arguments, and with only `--port`), loads the dashboard
+page each time, and fails if the dashboard logs an error. Only then is the image
+published:
 
 | Event | Published tags |
 | --- | --- |
@@ -189,9 +181,11 @@ To build and run it locally:
 
 ```bash
 docker build --platform linux/amd64 -t nsdf-llc2160-dashboard .
-docker run --rm -p 11957:11957 nsdf-llc2160-dashboard --address 0.0.0.0 --port 11957 --args json/nasa.json
+docker run --rm -p 11957:11957 nsdf-llc2160-dashboard
 ```
 
-The image runs this repository's own copy of openvisuspy (from [sci-visus/openvisuspy](https://github.com/sci-visus/openvisuspy/tree/test_region_extraction), branch `test_region_extraction`); the
-dashboard itself is in [`app/`](app). For notebooks, local Python installs, and
-other dashboards, see [openvisuspy](https://github.com/sci-visus/openvisuspy).
+The defaults live in the `ENV` block of the [`Dockerfile`](Dockerfile), and
+[`docker-entrypoint.sh`](docker-entrypoint.sh) fills them in. The image runs this
+repository's own copy of openvisuspy (from [sci-visus/openvisuspy](https://github.com/sci-visus/openvisuspy/tree/test_region_extraction), branch `test_region_extraction`); the dashboard itself is
+in [`app/`](app). For notebooks, local Python installs, and other dashboards, see
+[openvisuspy](https://github.com/sci-visus/openvisuspy).
