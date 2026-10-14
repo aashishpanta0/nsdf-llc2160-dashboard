@@ -2,7 +2,7 @@
 *
 !docker-entrypoint.sh
 !src
-!app
+!nasa-llc2160
 !json
 **/__pycache__
 **/.ipynb_checkpoints

@@ -1,13 +1,15 @@
 # NSDF NASA LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/nasa-llc2160
 services:
   nasa-llc2160:
+    container_name: nasa-oceanic
     image: ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
     platform: linux/amd64
     restart: unless-stopped
+    #   DATASET: "/opt/openvisuspy/json/nasa.json"
     ports:
-      - "11957:11957"
+      - "127.0.0.1:8080:8080"
     # Defaults are saved in the image. To override one, e.g. the dataset:
-    # command: ["--args", "/data/my-dataset/visus.idx"]
+    command: ["--port", "8080"]
     volumes:
       - cache:/var/cache/visus
 

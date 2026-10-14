@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=build /opt/venv /opt/venv
 COPY src /opt/openvisuspy/src
-COPY app /opt/openvisuspy/nasa-llc2160
+COPY nasa-llc2160 /opt/openvisuspy/nasa-llc2160
 COPY json /opt/openvisuspy/json
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
