@@ -232,6 +232,19 @@ class BaseDataset(object):
 
 
 # //////////////////////////////////////////////////////////////////////////
+def ApplyCachedSetting(url):
+	"""Applies the CACHED environment variable to an .idx url.
+	CACHED true: adds cached=arco, so OpenVisus keeps the blocks it reads under VISUS_CACHE.
+	CACHED false (default): removes any cached= parameter, so data is always read remotely."""
+	parsed=urlparse(url)
+	if parsed.scheme not in ("http","https") or not parsed.path.lower().endswith(".idx"):
+		return url
+	query=[(k,v) for k,v in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True) if k!="cached"]
+	if cbool(os.environ.get("CACHED","false")):
+		query.append(("cached","arco"))
+	return urlunparse(parsed._replace(query=urllib.parse.urlencode(query, safe="/:")))
+
+# //////////////////////////////////////////////////////////////////////////
 class OpenVisusDataset(BaseDataset):
 
 	# constructor
@@ -250,6 +263,8 @@ class OpenVisusDataset(BaseDataset):
 
 			url=url + f"&~auth_username={os.environ['MODVISUS_USERNAME']}&~auth_password={os.environ['MODVISUS_PASSWORD']}"
 
+		url=ApplyCachedSetting(url)
+		logger.info(f"Loading dataset url={url}")
 		self.db=ov.LoadDataset(url)
 
 

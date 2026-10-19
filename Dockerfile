@@ -23,6 +23,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/opt/openvisuspy/src \
     BOKEH_ALLOW_WS_ORIGIN=* \
     VISUS_CACHE=/var/cache/visus \
+    CACHED=false \
     DASHBOARD_APP=/opt/openvisuspy/nasa-llc2160 \
     ADDRESS=0.0.0.0 \
     PORT=11957 \

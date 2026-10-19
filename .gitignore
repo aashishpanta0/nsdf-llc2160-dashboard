@@ -20,3 +20,4 @@ deploy/inventory.ini
 
 .env
 /data/
+/visus_cache_can_be_erased/

@@ -1,4 +1,4 @@
-# NSDF NASA LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/nasa-llc2160
+# NSDF NASA LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:8080/nasa-llc2160
 services:
   nasa-llc2160:
     container_name: nasa-oceanic
@@ -8,10 +8,9 @@ services:
     #   DATASET: "/opt/openvisuspy/json/nasa.json"
     ports:
       - "127.0.0.1:8080:8080"
-    # Defaults are saved in the image. To override one, e.g. the dataset:
-    command: ["--port", "8080"]
+    # Defaults are saved in the image. Caching is off by default; drop
+    # "--cached" (or use "--no-cached") to read everything from the server.
+    command: ["--port", "8080", "--cached"]
     volumes:
-      - cache:/var/cache/visus
-
-volumes:
-  cache:
+      # The cache, on the host; safe to delete at any time.
+      - ./visus_cache_can_be_erased:/var/cache/visus

@@ -36,6 +36,7 @@ only what you want to change; everything else keeps its default.
 | Address | `0.0.0.0` | `--address <ip>`, or `-e ADDRESS=<ip>` |
 | Port | `11957` | `--port <port>`, or `-e PORT=<port>` |
 | Dataset | `/opt/openvisuspy/json/nasa.json` (the five LLC2160 fields) | `--args <dataset>`, the dataset as the first argument, or `-e DATASET=<dataset>` |
+| Caching | off | `--cached` to turn it on (`--no-cached` turns it off), or `-e CACHED=true` |
 
 Arguments go after the image name. For example, to serve on port 9000 (publish
 the same port with `-p`):
@@ -54,18 +55,37 @@ docker run -d --name nasa-llc2160 -p 11957:11957 \
   --args /data/my-dataset/visus.idx
 ```
 
+### Caching
+
+Caching is off by default: every view is read from the remote server. With
+`--cached`, the dashboard adds `cached=arco` to each remote `.idx` URL, so
+OpenVisus saves the blocks it reads under `/var/cache/visus` and reads them
+from there the next time. Local paths are never cached. To keep the cache on
+your machine, mount a folder there; you can delete it at any time:
+
+```bash
+mkdir -p visus_cache_can_be_erased && chmod 1777 visus_cache_can_be_erased
+docker run -d --name nasa-llc2160 -p 11957:11957 \
+  -v "$PWD/visus_cache_can_be_erased:/var/cache/visus" \
+  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest --cached
+```
+
+The `chmod` matters on Linux: the container runs as UID 10001, and a folder
+that Docker creates for you is owned by root and cannot be written.
+
 Any other [`panel serve` option](https://panel.holoviz.org/how_to/server/commandline.html)
 is passed through, e.g. `--num-procs 4` or `--prefix /nasa-llc2160`.
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
 | `BOKEH_ALLOW_WS_ORIGIN` | `*` | Host names browsers may use to reach the dashboard, comma-separated. Set it to your public host name in production |
-| `VISUS_CACHE` | `/var/cache/visus` | Where OpenVisus caches downloaded data. Mount a volume there to keep it across restarts |
+| `CACHED` | `false` | Whether remote `.idx` datasets are cached (see [Caching](#caching)). `--cached` and `--no-cached` set it |
+| `VISUS_CACHE` | `/var/cache/visus` | Where OpenVisus keeps the cache. Mount a folder or volume there to keep it across restarts |
 
 ## Run with Docker Compose
 
-Save this as `docker-compose.yml` (the same file is in this repository), then run
-`docker compose up -d`:
+Save this as `docker-compose.yml`, then run `docker compose up -d`. It turns
+caching on and keeps the cache in `./visus_cache_can_be_erased`:
 
 ```yaml
 # NSDF NASA LLC2160 Dashboard: run `docker compose up -d`, then open http://localhost:11957/nasa-llc2160
@@ -76,14 +96,19 @@ services:
     restart: unless-stopped
     ports:
       - "11957:11957"
-    # Defaults are saved in the image. To override one, e.g. the dataset:
-    # command: ["--args", "/data/my-dataset/visus.idx"]
+    # Defaults are saved in the image. Remove "--cached" to read everything
+    # from the server; to change the dataset, add e.g. "--args", "/data/my-dataset/visus.idx"
+    command: ["--cached"]
     volumes:
-      - cache:/var/cache/visus
-
-volumes:
-  cache:
+      # The cache, on the host; safe to delete at any time.
+      - ./visus_cache_can_be_erased:/var/cache/visus
 ```
+
+On Linux, create the folder first with
+`mkdir -p visus_cache_can_be_erased && chmod 1777 visus_cache_can_be_erased`
+(see [Caching](#caching)). In a clone of this repository, `make up` does that and
+starts the repository's `docker-compose.yml` (on port 8080); `make clean-cache`
+deletes the cache.
 
 ## Run on Kubernetes
 
