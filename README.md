@@ -20,11 +20,19 @@ you do not need to clone this repository or install Python.
 You need [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
-docker run -d --name nasa-llc2160 -p 11957:11957 ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest
+mkdir -p visus_cache_can_be_erased && chmod 1777 visus_cache_can_be_erased
+docker run -d --name nasa-llc2160 -p 11957:11957 \
+  -v "$PWD/visus_cache_can_be_erased:/var/cache/visus" \
+  ghcr.io/aashishpanta0/nsdf-llc2160-dashboard:latest --cached
 ```
 
 Open <http://localhost:11957/nasa-llc2160>. The first load can take a minute while
 data is fetched. Stop and remove it with `docker rm -f nasa-llc2160`.
+
+`--cached` keeps the data it reads in `./visus_cache_can_be_erased`, so it loads
+faster next time; delete that folder whenever you like. To read everything from
+the server instead, leave out both the `-v` line and `--cached` (see
+[Caching](#caching)).
 
 ## Defaults and how to change them
 
@@ -72,6 +80,19 @@ docker run -d --name nasa-llc2160 -p 11957:11957 \
 
 The `chmod` matters on Linux: the container runs as UID 10001, and a folder
 that Docker creates for you is owned by root and cannot be written.
+
+The folder and the container share the same files, and they stay after the
+container is removed, so the next run reuses them. To clear the cache, stop the
+dashboard and delete the folder:
+
+```bash
+docker rm -f nasa-llc2160
+rm -rf visus_cache_can_be_erased   # on Linux: sudo rm -rf visus_cache_can_be_erased
+```
+
+On Linux the cached files belong to UID 10001, which is why `sudo` may be
+needed. Create the folder again (the `mkdir` and `chmod` above) before the next
+cached run.
 
 Any other [`panel serve` option](https://panel.holoviz.org/how_to/server/commandline.html)
 is passed through, e.g. `--num-procs 4` or `--prefix /nasa-llc2160`.
