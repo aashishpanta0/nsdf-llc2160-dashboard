@@ -10,7 +10,7 @@ you do not need to clone this repository or install Python.
 | | |
 | --- | --- |
 | Image | `ghcr.io/aashishpanta0/nsdf-llc2160-dashboard` ([package page](https://github.com/aashishpanta0/nsdf-llc2160-dashboard/pkgs/container/nsdf-llc2160-dashboard)) |
-| Tags | `latest` (newest build of `main`) and `X.Y.Z` (releases) |
+| Tags | `latest` (newest build of `main`) and `X.Y.Z` (one per build of `main`; each stays fixed) |
 | Platform | `linux/amd64` (runs under emulation on Apple Silicon and other ARM hosts) |
 | Port | `11957` |
 | Dashboard URL | `http://<host>:11957/nasa-llc2160` |
@@ -214,13 +214,18 @@ published:
 
 | Event | Published tags |
 | --- | --- |
-| Push to `main` | `latest` |
+| Push to `main` | `latest`, plus the next patch version (e.g. `1.0.3`), which is also pushed as the git tag `v1.0.3` |
 | Push a `vX.Y.Z` tag | `X.Y.Z` |
 | Pull request | none (build and test only) |
 
+The first push to `main` publishes `1.0.0`. Each version tag stays on the image
+it was built from; later pushes add new versions and move only `latest`. To
+start a new minor or major version, push its tag yourself, and the following
+pushes to `main` count up from it:
+
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 To build and run it locally:

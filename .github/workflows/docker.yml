@@ -2,8 +2,9 @@ name: docker
 
 # Builds the image, starts it and loads the dashboard page (which opens the
 # dataset), and only publishes it to ghcr.io/<owner>/<repo> if that works:
-#   push to main      -> :latest
-#   push tag vX.Y.Z   -> :X.Y.Z
+#   push to main      -> :latest and the next patch version, e.g. :1.0.3, and
+#                        the git tag v1.0.3 (v1.0.0 if there is no tag yet)
+#   push tag vX.Y.Z   -> :X.Y.Z (use this to start a new minor or major version)
 #   pull request      -> build and test only
 on:
   push:
@@ -13,8 +14,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # push the version tag
   packages: write
+
+# One run per branch or tag at a time, so two pushes never take the same version.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -22,6 +28,22 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all tags, to find the newest version
+
+      # Next version on main: the newest vX.Y.Z tag with its patch number + 1.
+      - id: version
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$last" ]; then
+            next=1.0.0
+          else
+            next="${last%.*}.$(( ${last##*.} + 1 ))"
+            next=${next#v}
+          fi
+          echo "Newest tag: ${last:-none}, next version: $next"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -76,6 +98,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.version != '' }}
 
       # No provenance/SBOM: publish a plain linux/amd64 manifest, which ARM
       # hosts (Apple Silicon) can pull and run under emulation.
@@ -91,3 +114,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
+
+      # Record the published version in git. A tag pushed with GITHUB_TOKEN does
+      # not start another run, so the image is not built twice.
+      - name: Tag the version
+        if: steps.version.outputs.version != ''
+        run: |
+          git tag "v${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+          git push origin "v${{ steps.version.outputs.version }}"
